@@ -31,7 +31,11 @@ typedef enum OCSLOCK_NAME
 	USR_ACCNT = 9,
 	NET_CONFIG = 10,
 	OCSFILE_WRITE = 11,
-	NUM_OCSLOCKS = 12,
+	I2C16_CHARDEV = 12,
+	I2C17_CHARDEV = 13,
+	I2C18_CHARDEV = 14,
+	I2C19_CHARDEV = 15,
+	NUM_OCSLOCKS = 16,
 }ocslock_t;
 
 static const char *OCSLOCK_STRING[NUM_OCSLOCKS] = {
@@ -47,6 +51,10 @@ static const char *OCSLOCK_STRING[NUM_OCSLOCKS] = {
 	"ocsuseraccount",
 	"ocsnetconfig",
 	"ocsfilewrite",
+	"ocsi2c16dev",
+	"ocsi2c17dev",
+	"ocsi2c18dev",
+	"ocsi2c19dev",
 };
 
 /* Extern functions */
