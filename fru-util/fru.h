@@ -28,11 +28,25 @@
 
 /* eeprom limits */
 #define MAX_RECORDS			18
-#define MAX_NAME_LEN		18
-#define MAX_LENGTH			62
-#define MAX_EEPROM_SZ		1280
+#define MAX_NAME_LEN		128
+#define MAX_LENGTH			256
+#define MAX_EEPROM_SZ		768
 
+/* Fru util */
+#define CHASSIS_INFO_COUNT	14
+#define BOARD_INFO_COUNT	19
+#define PRODUCT_INFO_COUNT	25
 
+#define CHASSIS_INFO_PROP	2
+/* eeprom base addresses */
+#define	EEPROM_CHASSIS_ADDRESS	0x80
+#define	EEPROM_BOARD_ADDRESS	0x100
+#define	EEPROM_PRODUCT_ADDRESS	0x180
+
+/* Operations */
+#define OP_READ		0
+#define OP_WRITE	1
+#define OP_PATCH	2
 
 #define PACK( __Declaration__ ) __Declaration__ __attribute__((__packed__))
 /*#define PACK( __Declaration__ ) __pragma( pack(push, 1) ) __Declaration__ __pragma( pack(pop) )*/
