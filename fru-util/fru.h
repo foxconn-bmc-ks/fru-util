@@ -42,6 +42,8 @@
 #define	EEPROM_CHASSIS_ADDRESS	0x80
 #define	EEPROM_BOARD_ADDRESS	0x100
 #define	EEPROM_PRODUCT_ADDRESS	0x180
+/* Info area size */
+#define INFO_AREA_SIZE 0x7F
 
 /* Operations */
 #define OP_READ		0
