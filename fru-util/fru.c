@@ -75,7 +75,7 @@ static const uint8_t CHASSIS_FIELDS[CHASSIS_INFO_COUNT][CHASSIS_INFO_PROP] = {
 	{0x4F, 0},
 	{0x52, 1},
 	{0x53, 1},
-	{INFO_AREA_SIZE, 1}
+	{0x7F, 1}
 };
 
 static const uint8_t BOARD_FRU_FIELDS[BOARD_INFO_COUNT][MAX_NAME_LEN] = {
@@ -118,7 +118,7 @@ static const uint8_t BOARD_FIELDS[BOARD_INFO_COUNT][CHASSIS_INFO_PROP] = {
 	{0x6E, 0},
 	{0x74, 1},
 	{0x75, 1},
-	{INFO_AREA_SIZE, 1}
+	{0x7F, 1}
 };
 static const uint8_t PRODUCT_FRU_FIELDS[PRODUCT_INFO_COUNT][MAX_NAME_LEN] = {
 	"Product_Area_Format_Version:",
@@ -172,7 +172,7 @@ static const uint8_t PRODUCT_FIELDS[PRODUCT_INFO_COUNT][CHASSIS_INFO_PROP] = {
 	{0x74, 0},
 	{0x77, 1},
 	{0x78, 1},
-	{INFO_AREA_SIZE, 1}
+	{0x7F, 1}
 };
 /* converts input char buffer to binary data */
 static int convert_binary_data(uint8_t* buffer) {
@@ -203,121 +203,71 @@ static AREA_FIELD fru_field(uint16_t *idx, uint8_t *buffer)
 	return field;
 }
 
+static int collect_fru_area_info(uint8_t *buffer,
+		uint16_t address, const uint8_t fru_fields[][MAX_NAME_LEN],
+		const uint8_t fields[][CHASSIS_INFO_PROP],
+		uint8_t info_count, int16_t area_size) {
+
+	uint8_t *value = calloc(area_size, sizeof(uint8_t));
+	memcpy(value, &buffer[address+fields[0][0]], area_size);
+	uint8_t field_length = 0;
+	uint8_t checksum = 0, count = 0;
+	uint8_t i, j;
+	char hex_string[256];
+
+	for (i=0;i<=fields[info_count-1][0];i++) {
+		checksum = (checksum + buffer[address+i]) % 256;
+	}
+	if (checksum == 0) {
+		for(i=0;i<info_count;i++) {
+			if (i+1 < info_count)
+				field_length = fields[i+1][0] - fields[i][0];
+			else
+				field_length = area_size - fields[i][0];
+
+			memset(value, '\0', area_size);
+			memcpy(value, &buffer[address+fields[i][0]], field_length);
+			if (fields[i][1] == 0)
+				log_out("%s%s", fru_fields[i], value);
+			else {
+				count = 0;
+				for (j=0;j<field_length;j++) {
+					count += snprintf(hex_string+count, sizeof(hex_string)/sizeof(hex_string[0])-count,  "%.2X", *value);
+				}
+				log_out("%s%s", fru_fields[i], hex_string);
+			}
+			/* If area length is 0 then stop to parse this FRU area
+				The second field for each info area is represent area length */
+			if (i == 1 && buffer[address+1] == 0)
+				break;
+			memset(value, '\0', area_size);
+		}
+	} else {
+		log_out("%sERROR", fru_fields[info_count-1]);
+		free(value);
+		return FAILURE;
+	}
+	free(value);
+	return SUCCESS;
+}
 /*
 	assigns fru charactor data in buffer to fru structures.
 */
 static int read_fru_from_buffer(uint8_t *buffer, uint16_t length)
 {
 	uint16_t idx;
-	uint8_t * mfgtime, i, j, count=0, checksum;
-	uint8_t value[INFO_AREA_SIZE];
 	uint8_t field_length = 0;
 	char hex_string[256];
 
-	FRU_HEADER header;
-	memset(&header, 0, sizeof(FRU_HEADER));
-
-	FRU_BOARD_INFO board;
-	memset(&board, 0, sizeof(FRU_BOARD_INFO));
-
-	FRU_PRODUCT_INFO product;
-	memset(&product, 0, sizeof(FRU_PRODUCT_INFO));
-
-	/* populate fru header */
-	memcpy(&header, buffer, sizeof(FRU_HEADER));
-
-	/* index into board area */
-	idx = (header.board * 8);
-
-	if (idx + sizeof(FRU_HEADER) > length) {
-		log_fnc_err(UNKNOWN_ERROR, "FRU buffer lenght does not support board header data");
-		return FAILURE;
-	}
-
-    memcpy(value, &buffer[EEPROM_CHASSIS_ADDRESS+CHASSIS_FIELDS[0][0]], INFO_AREA_SIZE);
-    checksum = 0;
-	for (i=0;i<=CHASSIS_FIELDS[CHASSIS_INFO_COUNT-1][0];i++) {
-		checksum = (checksum + buffer[EEPROM_CHASSIS_ADDRESS+i]) % 256;
-    }
-    memset(value, '\0', INFO_AREA_SIZE);
-    if (checksum == 0) {
-        for(i=0;i<CHASSIS_INFO_COUNT;i++) {
-            if (i+1 < CHASSIS_INFO_COUNT)
-                field_length = CHASSIS_FIELDS[i+1][0] - CHASSIS_FIELDS[i][0];
-            else
-                field_length = INFO_AREA_SIZE - CHASSIS_FIELDS[i][0] + 1;
-
-            memcpy(value, &buffer[EEPROM_CHASSIS_ADDRESS+CHASSIS_FIELDS[i][0]], field_length);
-            if (CHASSIS_FIELDS[i][1] == 0)
-                log_out("%s%s", CHASSIS_FRU_FIELDS[i], value);
-            else {
-                count = 0;
-                for (j=0;j<field_length;j++) {
-                    count += snprintf(hex_string+count, sizeof(hex_string)/sizeof(hex_string[0])-count,  "%.2X", *value);
-                }
-                log_out("%s%s", CHASSIS_FRU_FIELDS[i], hex_string);
-            }
-            memset(value, '\0', INFO_AREA_SIZE);
-        }
-    } else {
-        log_out("%sERROR", CHASSIS_FRU_FIELDS[CHASSIS_INFO_COUNT-1]);
-    }
-    memcpy(value, &buffer[EEPROM_BOARD_ADDRESS+BOARD_FIELDS[0][0]], INFO_AREA_SIZE);
-    checksum = 0;
-	for (i=0;i<=BOARD_FIELDS[BOARD_INFO_COUNT-1][0];i++) {
-		checksum = (checksum + buffer[EEPROM_BOARD_ADDRESS+i]) % 256;
-    }
-    memset(value, '\0', INFO_AREA_SIZE);
-    if (checksum == 0) {
-        for(i=0;i<BOARD_INFO_COUNT;i++) {
-            if (i+1 < BOARD_INFO_COUNT)
-                field_length = BOARD_FIELDS[i+1][0] - BOARD_FIELDS[i][0];
-            else
-                field_length = INFO_AREA_SIZE - BOARD_FIELDS[i][0] + 1;
-
-            memcpy(value, &buffer[EEPROM_BOARD_ADDRESS+BOARD_FIELDS[i][0]], field_length);
-            if (BOARD_FIELDS[i][1] == 0)
-                log_out("%s%s", BOARD_FRU_FIELDS[i], value);
-            else {
-                count = 0;
-                for (j=0;j<field_length;j++) {
-                    count += snprintf(hex_string+count, sizeof(hex_string)/sizeof(hex_string[0])-count,  "%.2X", value[j]);
-                }
-                log_out("%s%s", BOARD_FRU_FIELDS[i], hex_string);
-            }
-            memset(value, '\0', INFO_AREA_SIZE);
-        }
-    } else {
-        log_out("%sERROR", BOARD_FRU_FIELDS[BOARD_INFO_COUNT-1]);
-    }
-    memcpy(value, &buffer[EEPROM_PRODUCT_ADDRESS+BOARD_FIELDS[0][0]], INFO_AREA_SIZE);
-    checksum = 0;
-	for (i=0;i<=PRODUCT_FIELDS[PRODUCT_INFO_COUNT-1][0];i++) {
-		checksum = (checksum + buffer[EEPROM_PRODUCT_ADDRESS+i]) % 256;
-    }
-    memset(value, '\0', INFO_AREA_SIZE);
-    if (checksum == 0) {
-        for(i=0;i<PRODUCT_INFO_COUNT;i++) {
-            if (i+1 < PRODUCT_INFO_COUNT)
-                field_length = PRODUCT_FIELDS[i+1][0] - PRODUCT_FIELDS[i][0];
-            else
-                field_length = INFO_AREA_SIZE - PRODUCT_FIELDS[i][0] + 1;
-
-            memcpy(value, &buffer[EEPROM_PRODUCT_ADDRESS+PRODUCT_FIELDS[i][0]], field_length);
-            if (PRODUCT_FIELDS[i][1] == 0)
-                log_out("%s%s", PRODUCT_FRU_FIELDS[i], value);
-            else {
-                count = 0;
-                for (j=0;j<field_length;j++) {
-                    count += snprintf(hex_string+count, sizeof(hex_string)/sizeof(hex_string[0])-count,  "%.2X", *value);
-                }
-                log_out("%s%s", PRODUCT_FRU_FIELDS[i], hex_string);
-            }
-            memset(value, '\0', INFO_AREA_SIZE);
-        }
-    } else {
-        log_out("%sERROR", PRODUCT_FRU_FIELDS[PRODUCT_INFO_COUNT-1]);
-    }
+	collect_fru_area_info(buffer, EEPROM_CHASSIS_ADDRESS,
+			CHASSIS_FRU_FIELDS, CHASSIS_FIELDS, CHASSIS_INFO_COUNT,
+			CHASSIS_AREA_SIZE);
+	collect_fru_area_info(buffer, EEPROM_BOARD_ADDRESS,
+			BOARD_FRU_FIELDS, BOARD_FIELDS, BOARD_INFO_COUNT,
+			BOARD_AREA_SIZE);
+	collect_fru_area_info(buffer, EEPROM_PRODUCT_ADDRESS,
+			PRODUCT_FRU_FIELDS, PRODUCT_FIELDS, PRODUCT_INFO_COUNT,
+			PRODUCT_AREA_SIZE);
 
 	return SUCCESS;
 }
@@ -335,6 +285,82 @@ unsigned char* hexstr_to_char(const char* hexstr)
 	return chrs;
 }
 
+static int set_checksum(uint8_t *fru_data, uint16_t address,
+		const uint8_t fields[][CHASSIS_INFO_PROP],
+		uint8_t info_count) {
+	uint8_t checksum = 0;
+	size_t i;
+	for (i=0;i<fields[info_count-1][0];i++) {
+		checksum = (checksum + fru_data[address+i]) % 256;
+	}
+	checksum = 0x0 - checksum;
+	strncpy(&fru_data[address + fields[info_count-1][0]], &checksum, 1);
+}
+
+static int find_field_from_file(uint8_t *fru_data, uint8_t *line,
+		uint16_t address,
+		const uint8_t fru_fields[][MAX_NAME_LEN],
+		const uint8_t fields[][CHASSIS_INFO_PROP],
+		uint8_t info_count, int16_t area_size, size_t *found) {
+	uint8_t tag[MAX_NAME_LEN];
+	memset(&tag, 0, MAX_NAME_LEN);
+	size_t i;
+	uint8_t tag_length = 0, value_length = 0;
+	uint16_t base_addr = 0;
+	uint8_t field_length = 0;
+	int rc = 0;
+	for (i = 0; i < info_count && *found==0; i++)
+	{
+		if (strstr(line, fru_fields[i]) != NULL) {
+			*found = 1;
+			base_addr = address;
+
+			tag_length = (uint8_t)strlen(fru_fields[i]);
+
+			memset(&tag, 0, MAX_NAME_LEN);
+			strncpy(tag, fru_fields[i], tag_length);
+
+			/* check fru file tag format */
+			if (strcmp(tag, fru_fields[i]) != 0)
+			{
+				log_out("header mismatch line beginging: %s\n", line);
+				return FAILURE;
+			}
+
+			/* replace any new line */
+			if (line[strlen(line) - 1] == NEW_LINE) {
+				line[strlen(line) - 1] = '\0';
+			}
+			if (i+1 < info_count)
+				field_length = fields[i+1][0] - fields[i][0];
+			else
+				field_length = area_size - fields[i][0];
+
+			/*
+				Verify field have enough length to store given value to FRU
+				Value of ordinary string type is stored as-is, so the number of byte it will occupy exactly its string length.
+				Value of hex string type will be converted to integer before storing to FRU.
+				Since there is no 0x prefix, the number of byte it will occupy is its string length divide by 2.
+				Note: here we use the coincidence that value type code plus 1 happens to be the denominator
+			*/
+			value_length = strlen(line)-tag_length;
+			if (field_length >= value_length/(fields[i][1]+1) &&
+				value_length % (fields[i][1]+1) == 0) {
+				if (fields[i][1] == 1) {
+					strncpy(&fru_data[base_addr + fields[i][0]], hexstr_to_char(&line[tag_length]), field_length);
+				} else if (fields[i][1] == 0) {
+					strncpy(&fru_data[base_addr + fields[i][0]], &line[tag_length], strlen(line));
+				}
+			} else {
+				log_out("field value exceed for FRU designated EEPROM space: %s", line);
+				return FAILURE;
+			}
+			break;
+		}
+	}
+	return SUCCESS;
+}
+
 /*
 	reads fru text data from file into array
 */
@@ -345,13 +371,6 @@ static int read_fru_from_file(uint8_t channel, uint8_t slave_addr, FILE *input, 
 	uint8_t line[256];
 	memset(&line, 0, sizeof(line));
 
-	/* used for line tag compare */
-	uint8_t tag[MAX_NAME_LEN];
-	memset(&tag, 0, MAX_NAME_LEN);
-
-	uint8_t tag_length = 0;
-	uint8_t field_length = 0;
-	uint16_t area_length = 0;
 	uint16_t idx = sizeof(FRU_HEADER);
 
 	FRU_HEADER header;
@@ -378,164 +397,41 @@ static int read_fru_from_file(uint8_t channel, uint8_t slave_addr, FILE *input, 
 	uint8_t *boardLength;
 	uint8_t *prodLength;
 
-	area_length = 3;
 	int rc = 0;
 
 	size_t i, found=0;
 	while (fgets(line, (MAX_LENGTH + MAX_NAME_LEN), input) != NULL)
 	{
 		found = 0;
-		for (i = 0; i < CHASSIS_INFO_COUNT && found==0; i++)
-		{
-			if (strstr(&line, &CHASSIS_FRU_FIELDS[i]) != NULL) {
-				found = 1;
-				base_addr = EEPROM_CHASSIS_ADDRESS;
-
-				tag_length = (uint8_t)strlen(&CHASSIS_FRU_FIELDS[i]);
-
-				memset(&tag, 0, MAX_NAME_LEN);
-				strncpy(&tag, &CHASSIS_FRU_FIELDS[i], tag_length);
-
-				/* check fru file tag format */
-				if (strcmp(&tag, &CHASSIS_FRU_FIELDS[i]) != 0)
-				{
-					log_fnc_err(UNKNOWN_ERROR, "header mismatch line beginging: %s\n", line);
-					rc = UNKNOWN_ERROR;
-					break;
-				}
-
-				/* replace any new line */
-				if (line[strlen(line) - 1] == NEW_LINE) {
-						line[strlen(line) - 1] = '\0';
-				}
-				if (i+1 < CHASSIS_INFO_COUNT)
-					field_length = CHASSIS_FIELDS[i+1][0] - CHASSIS_FIELDS[i][0];
-				else
-					field_length = INFO_AREA_SIZE - CHASSIS_FIELDS[i][0] + 1;
-
-				/* check current area within designated fru size */
-				if (field_length >= (strlen(line)-tag_length)/(CHASSIS_FIELDS[i][1]+1)) {
-					if (CHASSIS_FIELDS[i][1] == 1) {
-						strncpy(&fru_data[base_addr + CHASSIS_FIELDS[i][0]], hexstr_to_char(&line[tag_length]), field_length);
-					} else if (CHASSIS_FIELDS[i][1] == 0) {
-						strncpy(&fru_data[base_addr + CHASSIS_FIELDS[i][0]], &line[tag_length], strlen(line));
-					}
-				} else {
-					log_fnc_err(UNKNOWN_ERROR, "field value exceed for FRU designated EEPROM space: %s", line);
-					rc = UNKNOWN_ERROR;
-				}
-				break;
-			}
+		rc = find_field_from_file(fru_data, line, EEPROM_CHASSIS_ADDRESS,
+			CHASSIS_FRU_FIELDS, CHASSIS_FIELDS, CHASSIS_INFO_COUNT,
+			CHASSIS_AREA_SIZE, &found);
+		if (rc != SUCCESS) {
+			free(fru_data);
+			return rc;
 		}
-		for (i = 0; i < BOARD_INFO_COUNT && found==0; i++)
-		{
-			if (strstr(&line, &BOARD_FRU_FIELDS[i]) != NULL) {
-				found = 1;
-				base_addr = EEPROM_BOARD_ADDRESS;
-
-				tag_length = (uint8_t)strlen(&BOARD_FRU_FIELDS[i]);
-
-				memset(&tag, 0, MAX_NAME_LEN);
-				strncpy(&tag, &BOARD_FRU_FIELDS[i], tag_length);
-
-				/* check fru file tag format */
-				if (strcmp(&tag, &BOARD_FRU_FIELDS[i]) != 0)
-				{
-					log_fnc_err(UNKNOWN_ERROR, "header mismatch line beginging: %s\n", line);
-					rc = UNKNOWN_ERROR;
-					break;
-				}
-
-				/* replace any new line */
-				if (line[strlen(line) - 1] == NEW_LINE) {
-						line[strlen(line) - 1] = '\0';
-				}
-				if (i+1 < BOARD_INFO_COUNT)
-					field_length = BOARD_FIELDS[i+1][0] - BOARD_FIELDS[i][0];
-				else
-					field_length = INFO_AREA_SIZE - BOARD_FIELDS[i][0] + 1;
-
-				/* check current area within designated fru size */
-				if (field_length >= (strlen(line)-tag_length)/(BOARD_FIELDS[i][1]+1)) {
-					if (BOARD_FIELDS[i][1] == 1) {
-						strncpy(&fru_data[base_addr + BOARD_FIELDS[i][0]], hexstr_to_char(&line[tag_length]), field_length);
-					} else if (BOARD_FIELDS[i][1] == 0) {
-						strncpy(&fru_data[base_addr + BOARD_FIELDS[i][0]], &line[tag_length], strlen(line));
-					}
-				} else {
-					log_fnc_err(UNKNOWN_ERROR, "field value exceed for FRU designated EEPROM space: %s", line);
-					rc = UNKNOWN_ERROR;
-				}
-				break;
-			}
+		rc = find_field_from_file(fru_data, line, EEPROM_BOARD_ADDRESS,
+			BOARD_FRU_FIELDS, BOARD_FIELDS, BOARD_INFO_COUNT,
+			BOARD_AREA_SIZE, &found);
+		if (rc != SUCCESS) {
+			free(fru_data);
+			return rc;
 		}
-
-		for (i = 0; i < PRODUCT_INFO_COUNT && found==0; i++)
-		{
-			if (strstr(&line, &PRODUCT_FRU_FIELDS[i]) != NULL) {
-				found = 1;
-				base_addr = EEPROM_PRODUCT_ADDRESS;
-
-				tag_length = (uint8_t)strlen(&PRODUCT_FRU_FIELDS[i]);
-
-				memset(&tag, 0, MAX_NAME_LEN);
-				strncpy(&tag, &PRODUCT_FRU_FIELDS[i], tag_length);
-
-				/* check fru file tag format */
-				if (strcmp(&tag, &PRODUCT_FRU_FIELDS[i]) != 0)
-				{
-					log_fnc_err(UNKNOWN_ERROR, "header mismatch line beginging: %s\n", line);
-					rc = UNKNOWN_ERROR;
-					break;
-				}
-
-				/* replace any new line */
-				if (line[strlen(line) - 1] == NEW_LINE) {
-						line[strlen(line) - 1] = '\0';
-				}
-				if (i+1 < PRODUCT_INFO_COUNT)
-					field_length = PRODUCT_FIELDS[i+1][0] - PRODUCT_FIELDS[i][0];
-				else
-					field_length = INFO_AREA_SIZE - PRODUCT_FIELDS[i][0] + 1;
-
-				/* check current area within designated fru size */
-				if (field_length >= (strlen(line)-tag_length)/(PRODUCT_FIELDS[i][1]+1)) {
-					if (PRODUCT_FIELDS[i][1] == 1) {
-						strncpy(&fru_data[base_addr + PRODUCT_FIELDS[i][0]], hexstr_to_char(&line[tag_length]), field_length);
-					} else if (PRODUCT_FIELDS[i][1] == 0) {
-						strncpy(&fru_data[base_addr + PRODUCT_FIELDS[i][0]], &line[tag_length], strlen(line));
-					}
-				} else {
-					log_fnc_err(UNKNOWN_ERROR, "field value exceed for FRU designated EEPROM space: %s", line);
-					rc = UNKNOWN_ERROR;
-				}
-				break;
-			}
-		}
+		rc = find_field_from_file(fru_data, line, EEPROM_PRODUCT_ADDRESS,
+			PRODUCT_FRU_FIELDS, PRODUCT_FIELDS, PRODUCT_INFO_COUNT,
+			PRODUCT_AREA_SIZE, &found);
 		if (rc != SUCCESS) {
 			free(fru_data);
 			return rc;
 		}
 	}
 
-	uint8_t checksum = 0;
-	for (i=0;i<CHASSIS_FIELDS[CHASSIS_INFO_COUNT-1][0];i++) {
-		checksum = (checksum + fru_data[EEPROM_CHASSIS_ADDRESS+i]) % 256;
-	}
-	checksum = 0x0 - checksum;
-	strncpy(&fru_data[EEPROM_CHASSIS_ADDRESS + CHASSIS_FIELDS[CHASSIS_INFO_COUNT-1][0]], &checksum, 1);
-	checksum = 0;
-	for (i=0;i<BOARD_FIELDS[BOARD_INFO_COUNT-1][0];i++) {
-		checksum = (checksum + fru_data[EEPROM_BOARD_ADDRESS+i]) % 256;
-	}
-	checksum = 0x0 - checksum;
-	strncpy(&fru_data[EEPROM_BOARD_ADDRESS + BOARD_FIELDS[BOARD_INFO_COUNT-1][0]], &checksum, 1);
-	checksum = 0;
-	for (i=0;i<PRODUCT_FIELDS[PRODUCT_INFO_COUNT-1][0];i++) {
-		checksum = (checksum + fru_data[EEPROM_PRODUCT_ADDRESS+i]) % 256;
-	}
-	checksum = 0x0 - checksum;
-	strncpy(&fru_data[EEPROM_PRODUCT_ADDRESS + PRODUCT_FIELDS[PRODUCT_INFO_COUNT-1][0]], &checksum, 1);
+	set_checksum(fru_data, EEPROM_CHASSIS_ADDRESS,
+		CHASSIS_FIELDS, CHASSIS_INFO_COUNT);
+	set_checksum(fru_data, EEPROM_BOARD_ADDRESS,
+		BOARD_FIELDS, BOARD_INFO_COUNT);
+	set_checksum(fru_data, EEPROM_PRODUCT_ADDRESS,
+		PRODUCT_FIELDS, PRODUCT_INFO_COUNT);
 
 	if (rc == SUCCESS)
 	{
