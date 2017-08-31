@@ -361,7 +361,7 @@ static int read_fru_from_file(uint8_t channel, uint8_t slave_addr, FILE *input, 
 	header.chassis = EEPROM_CHASSIS_ADDRESS / 8;
 	header.board = EEPROM_BOARD_ADDRESS / 8;
 	header.product = EEPROM_PRODUCT_ADDRESS / 8;
-	header.multirecord = 0;
+	header.multirecord = EEPROM_MULTIRECORD_ADDRESS / 8;
 	header.pad = 0;
 	header.checksum = 0x0 - header.commonheader - header.areaoffset \
 				- header.chassis - header.board - header.product - header.multirecord \
@@ -512,8 +512,10 @@ static int read_fru_from_file(uint8_t channel, uint8_t slave_addr, FILE *input, 
 				break;
 			}
 		}
-		if (rc != SUCCESS)
+		if (rc != SUCCESS) {
+			free(fru_data);
 			return rc;
+		}
 	}
 
 	uint8_t checksum = 0;
