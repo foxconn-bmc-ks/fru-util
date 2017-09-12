@@ -377,9 +377,15 @@ static int read_fru_from_file(uint8_t channel, uint8_t slave_addr, FILE *input, 
 	memset(&header, 0, sizeof(FRU_HEADER));
 	header.commonheader = 0x1;
 	header.areaoffset = 0;
-	header.chassis = EEPROM_CHASSIS_ADDRESS / 8;
+	if (channel == CM_CHANNEL){
+		header.chassis = EEPROM_CHASSIS_ADDRESS / 8;
+		header.product = EEPROM_PRODUCT_ADDRESS / 8;
+	}
+	else {
+        	header.chassis = 0;
+        	header.product = 0;
+	}
 	header.board = EEPROM_BOARD_ADDRESS / 8;
-	header.product = EEPROM_PRODUCT_ADDRESS / 8;
 	header.multirecord = EEPROM_MULTIRECORD_ADDRESS / 8;
 	header.pad = 0;
 	header.checksum = 0x0 - header.commonheader - header.areaoffset \

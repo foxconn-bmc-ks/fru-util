@@ -55,6 +55,11 @@
 #define OP_WRITE	1
 #define OP_PATCH	2
 
+/*channel definitions*/
+#define PDB_CHANNEL 0
+#define UBB_CHANNEL 3
+#define CM_CHANNEL 4
+
 #define PACK( __Declaration__ ) __Declaration__ __attribute__((__packed__))
 /*#define PACK( __Declaration__ ) __pragma( pack(push, 1) ) __Declaration__ __pragma( pack(pop) )*/
 
