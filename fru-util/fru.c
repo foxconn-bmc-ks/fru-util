@@ -75,7 +75,7 @@ static const uint8_t CHASSIS_FIELDS[CHASSIS_INFO_COUNT][CHASSIS_INFO_PROP] = {
 	{0x4F, 0},
 	{0x52, 1},
 	{0x53, 1},
-	{0x7F, 1}
+	{0x57, 1}
 };
 
 static const uint8_t BOARD_FRU_FIELDS[BOARD_INFO_COUNT][MAX_NAME_LEN] = {
@@ -118,7 +118,7 @@ static const uint8_t BOARD_FIELDS[BOARD_INFO_COUNT][CHASSIS_INFO_PROP] = {
 	{0x6E, 0},
 	{0x74, 1},
 	{0x75, 1},
-	{0x7F, 1}
+	{0x77, 1}
 };
 static const uint8_t PRODUCT_FRU_FIELDS[PRODUCT_INFO_COUNT][MAX_NAME_LEN] = {
 	"Product_Area_Format_Version:",
@@ -377,15 +377,9 @@ static int read_fru_from_file(uint8_t channel, uint8_t slave_addr, FILE *input, 
 	memset(&header, 0, sizeof(FRU_HEADER));
 	header.commonheader = 0x1;
 	header.areaoffset = 0;
-	if (channel == CM_CHANNEL){
-		header.chassis = EEPROM_CHASSIS_ADDRESS / 8;
-		header.product = EEPROM_PRODUCT_ADDRESS / 8;
-	}
-	else {
-        	header.chassis = 0;
-        	header.product = 0;
-	}
 	header.board = EEPROM_BOARD_ADDRESS / 8;
+	header.chassis = EEPROM_CHASSIS_ADDRESS / 8;
+	header.product = EEPROM_PRODUCT_ADDRESS / 8;
 	header.multirecord = EEPROM_MULTIRECORD_ADDRESS / 8;
 	header.pad = 0;
 	header.checksum = 0x0 - header.commonheader - header.areaoffset \
