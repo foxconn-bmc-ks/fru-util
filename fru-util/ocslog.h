@@ -16,6 +16,7 @@
 #define UNKNOWN_ERROR	-1
 #define FAILURE			-2
 #define SUCCESS			0
+#define LENGTH_EXCEED	3
 
 typedef enum LOG_LEVEL
 {

@@ -11,6 +11,9 @@
 #include <stdint.h>
 #include "i2clib.h"
 
+#ifndef _FRU_H
+#define _FRU_H
+
 /* fru definitions */
 #define FRU_LANG			0x00
 #define FRU_VERSION			0x01
@@ -32,8 +35,6 @@
 #define MAX_LENGTH			62
 #define MAX_EEPROM_SZ		1280
 
-
-
 #define PACK( __Declaration__ ) __Declaration__ __attribute__((__packed__))
 /*#define PACK( __Declaration__ ) __pragma( pack(push, 1) ) __Declaration__ __pragma( pack(pop) )*/
 
@@ -50,47 +51,41 @@ PACK(typedef struct fru_header
 	uint8_t		   checksum;
 }) FRU_HEADER;
 
-/* fru area common header */
-PACK(typedef struct area_header
-{
-	uint8_t        version : 4;
-	uint8_t        length;
-	uint8_t        languagecode;
-}) AREA_HEADER;
+typedef enum {
+	EM_MSG_TYPE_HEX = 0,
+	EM_MSG_TYPE_STRING,
+	EM_MSG_TYPE_DATE_STRING,
+} FRU_INFO_SHOW_MSG_TYPE;
 
 /* fru area field */
-PACK(typedef struct fru_field
+PACK(typedef struct fru_area_info_field
 {
-	uint8_t			*length;
-	uint8_t         *data;
-}) AREA_FIELD;
+	const char  *fru_field_name;
+	uint8_t		*data;
+	int 		length;
+	FRU_INFO_SHOW_MSG_TYPE em_show_msg_type;
+}) FRU_AREA_INFO_FIELD;
 
-/* fru board info area */
-PACK(typedef struct fru_board_info
-{
-	AREA_HEADER 	header;
-	uint8_t			mfgdatetime[3];
-	AREA_FIELD      manufacture;
-	AREA_FIELD      name;
-	AREA_FIELD		serial;
-	AREA_FIELD		part;
-	AREA_FIELD		fruid;
-	AREA_FIELD		address1;
-	AREA_FIELD		address2;
-	AREA_FIELD		boardver;
-	AREA_FIELD		build;
-}) FRU_BOARD_INFO;
+typedef enum {
+	EM_CHASSIS = 0,
+	EM_BOARD,
+	EM_PRODUCT,
+	EM_INTERNAL_USE,
+	EM_FRU_INFO_MAX
+} FRU_INFO_TYPE;
 
-/* fru product info area */
-PACK(typedef struct fru_product_info
+/* fru area field */
+PACK(typedef struct fru_area_info_header
 {
-	AREA_HEADER		header;
-	AREA_FIELD      manufacture;
-	AREA_FIELD      productname;
-	AREA_FIELD		productversion;
-	AREA_FIELD		serial;
-	AREA_FIELD		assettag;
-	AREA_FIELD		fruid;
-	AREA_FIELD		subproduct;
-	AREA_FIELD		build;
-}) FRU_PRODUCT_INFO;
+	FRU_INFO_TYPE em_fru_type;
+	FRU_AREA_INFO_FIELD *ptr_fru_field;
+	//(header_offset+notify_total_field_length_offset) mean
+	// absolute offset in memory which sets area length
+	uint8_t		notify_area_length_offset;
+	uint8_t		area_length_multiply;
+	uint8_t		header_offset;
+	uint8_t		*area_data;
+	uint16_t	area_length;
+}) FRU_AREA_INFO_HEADER;
+
+#endif
