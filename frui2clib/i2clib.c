@@ -26,7 +26,6 @@ int open_i2c_channel(uint8_t channel, int32_t *handle) {
 		return FAILURE;
 	}
 
-	ioctl(*handle, I2C_TIMEOUT, 3);
 	ioctl(*handle, I2C_RETRIES, 3);
 
 	return SUCCESS;
