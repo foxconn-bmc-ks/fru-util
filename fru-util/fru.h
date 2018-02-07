@@ -38,6 +38,12 @@
 #define PACK( __Declaration__ ) __Declaration__ __attribute__((__packed__))
 /*#define PACK( __Declaration__ ) __pragma( pack(push, 1) ) __Declaration__ __pragma( pack(pop) )*/
 
+typedef enum {
+	EM_FRU_EEPROM_AT24C64 = 0,
+	EM_FRU_EEPROM_AT24C02,
+	EM_FRU_EEPROM_PRODUCT_TYPE_MAX
+} FRU_EEPROM_PRODUCT_TYPE;
+
 /* fru eeprom header format */
 PACK(typedef struct fru_header
 {

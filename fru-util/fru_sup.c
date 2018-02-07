@@ -139,6 +139,7 @@ void usage()
 	log_out("                                   52 = row\n");
 	log_out("		-r				Read operation.\n");
 	log_out("		-w	{file}		write operation, requires file name\n");
+	log_out("		-fru_eeprom_product_type {0, 1}, 0 = EM_FRU_EEPROM_AT24C64, 1 = EM_FRU_EEPROM_AT24C02\n");
 	log_out("\n");
 	log_out("Write Example:\n");
 	log_out("		ocs-fru -c 0 -s 50 -w filename\n");

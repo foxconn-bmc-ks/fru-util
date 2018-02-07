@@ -48,6 +48,15 @@ int(*i2c_write)(int32_t handle,
 #define FRU_AREA_INFO_TYPE_MASK ((1<<7) | (1<<6))
 #define MAX_FILE_PATH_LENGTH (200)
 
+/*
+	@g_em_fru_eeprom_product_type:
+		- MB FRU EEPROM Product Type: EM_FRU_EEPROM_AT24C64,
+		  write 2 bytes for data address
+		- {FPDB/EXP/BP} FRU EEPROM Product Type: EM_FRU_EEPROM_AT24C02,
+		  write 1 byte for data address
+*/
+static FRU_EEPROM_PRODUCT_TYPE g_em_fru_eeprom_product_type = EM_FRU_EEPROM_AT24C64;
+
 static FRU_AREA_INFO_FIELD CHASSIS_FRU_FIELDS[] = {
 //      fru_field_name                        data  length                           em_show_msg_type
 //      ---------------                       ----- --------                         -----------------------
@@ -208,9 +217,19 @@ static int i2c_write_read_dbg(int32_t handle, uint8_t slave_addr,
 static int i2c_write_read_prod(int32_t handle, uint8_t slave_addr,
 	uint8_t write_length, uint8_t* write_data, uint16_t read_length, uint8_t* buffer)
 {
-	// switch msb->lsb
-	uint16_t offset = (uint16_t)(write_data[0]<<8|write_data[1]);
-	memcpy(write_data, &offset, sizeof(uint16_t));
+	switch (g_em_fru_eeprom_product_type) {
+		case EM_FRU_EEPROM_AT24C02:
+			write_length = 1;
+			break;
+		case EM_FRU_EEPROM_AT24C64:
+		default:
+		{
+			// switch msb->lsb
+			uint16_t offset = (uint16_t)(write_data[0]<<8|write_data[1]);
+			memcpy(write_data, &offset, sizeof(uint16_t));
+			break;
+		}
+	}
 
 	if(i2c_block_read(handle, slave_addr, write_length, write_data, read_length, buffer)!= SUCCESS){
 		log_fnc_err(UNKNOWN_ERROR, "i2c read_after_write failed for eeprom: (%02x).\n", slave_addr);
@@ -240,15 +259,27 @@ static int i2c_write_dbg(int32_t handle, uint8_t slave_addr,
 static int i2c_write_prod(int32_t handle, uint8_t slave_addr,
 	uint8_t write_length, uint8_t *write_data, uint8_t data_length, uint8_t *buffer)
 {
-		uint16_t offset = (uint16_t)(write_data[0]<<8 | write_data[1]);
-		memcpy(write_data, &offset, sizeof(uint16_t));
-		if(i2c_block_write(handle, slave_addr, write_length, write_data, data_length, buffer) != SUCCESS)
+	switch (g_em_fru_eeprom_product_type) {
+		case EM_FRU_EEPROM_AT24C02:
+			write_length = 1;
+			break;
+		case EM_FRU_EEPROM_AT24C64:
+		default:
 		{
-				log_fnc_err(UNKNOWN_ERROR, "i2c write failed for eeprom (%02x).\n", slave_addr);
-				return FAILURE;
+			// switch msb->lsb
+			uint16_t offset = (uint16_t)(write_data[0]<<8 | write_data[1]);
+			memcpy(write_data, &offset, sizeof(uint16_t));
+			break;
 		}
+	}
 
-		return SUCCESS;
+	if(i2c_block_write(handle, slave_addr, write_length, write_data, data_length, buffer) != SUCCESS)
+	{
+		log_fnc_err(UNKNOWN_ERROR, "i2c write failed for eeprom (%02x).\n", slave_addr);
+		return FAILURE;
+	}
+
+	return SUCCESS;
 }
 
 /* reads raw fru data from eeprom */
@@ -676,6 +707,22 @@ int main(int argc, char **argv)
 
 				if (argc >= (i + 1)) {
 					filename = argv[i + 1];
+				}
+				else {
+					usage();
+					response = UNKNOWN_ERROR;
+					goto main_end;
+				}
+			}
+
+			if (strcmp(argv[i], "-fru_eeprom_product_type") == SUCCESS){
+				if (argc >= (i + 1)) {
+					g_em_fru_eeprom_product_type = strtol(argv[i + 1], NULL, 10);
+					if (g_em_fru_eeprom_product_type > EM_FRU_EEPROM_PRODUCT_TYPE_MAX) {
+						usage();
+						response = UNKNOWN_ERROR;
+						goto main_end;
+					}
 				}
 				else {
 					usage();
